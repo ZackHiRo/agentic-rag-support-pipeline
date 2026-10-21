@@ -1,0 +1,38 @@
+services:
+  support-agent:
+    build: .
+    container_name: support-agent
+    ports:
+      - "8501:8501"
+
+    # ── Secrets ──────────────────────────────────────────────────────────────
+    # Never bake keys into the image. Pass via env_file or environment block.
+    env_file:
+      - .env           # copy .env.example → .env and fill in before running
+
+    # ── Volume mounts ─────────────────────────────────────────────────────────
+    volumes:
+      # Knowledge base (markdown) — includes kb/demo/ out of the box
+      - ./kb:/app/kb
+
+      # Vector index — persisted between container restarts
+      - ./.chroma:/app/.chroma
+
+      # Entrypoint script
+      - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+
+      # Prompt bundles & code — mount so edits take effect immediately without rebuilding
+      - ./prompts:/app/prompts
+      - ./src:/app/src
+
+    # ── Optional: force a full KB rebuild on next startup ────────────────────
+    # environment:
+    #   - REBUILD_KB=true
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s    # give the KB build time to finish on first run

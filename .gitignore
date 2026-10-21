@@ -1,0 +1,17 @@
+# Environments and caches
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.chroma/
+.pytest_cache/
+.DS_Store
+*.egg-info/
+.ipynb_checkpoints/
+SETUP.md
+
+# Knowledge base — only kb/demo/ is committed
+kb/*
+!kb/demo/
+!kb/demo/**

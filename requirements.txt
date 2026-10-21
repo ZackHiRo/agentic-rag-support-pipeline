@@ -1,0 +1,19 @@
+# ── Core (always required) ────────────────────────────────────────────────────
+beautifulsoup4>=4.12.3
+markdownify>=0.13.1
+python-frontmatter>=1.1.0
+pyyaml>=6.0.2
+openai>=1.55.0          # also used as the client for Ollama / OpenAI-compatible endpoints
+chromadb>=0.5.20
+rank-bm25>=0.2.2
+pydantic>=2.9.2
+python-dotenv>=1.0.1
+streamlit>=1.50.0
+streamlit-paste-button>=0.1.2
+tiktoken>=0.8.0
+tqdm>=4.67.0
+pillow>=10.4.0
+
+# ── Optional: Anthropic provider ─────────────────────────────────────────────
+# Uncomment if you set LLM_PROVIDER=anthropic in .env
+# anthropic>=0.40.0
