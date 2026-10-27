@@ -41,6 +41,7 @@ PLATFORM_RE = {
 TOPICS = (
     ("disconnect_penalty", re.compile(r"\b(penalt\w*|cooldown)\b", re.I)),
     ("matchmaking_error", re.compile(r"\b(error\s*105|matchmak\w*|queue)\b", re.I)),
+    ("purchases", re.compile(r"\b(bought|purchas\w*|charged|refund\w*|bundle|starshards|season pass|rewards?|skins?)\b", re.I)),
     ("account_recovery", re.compile(r"\b(recover\w*|hacked|password|email|link\w*|login|log in|sign in)\b", re.I)),
     ("connection", re.compile(r"\b(disconnect\w*|lag\w*|ping|latency|timeout|timed out|kicked)\b", re.I)),
     ("player_report", re.compile(r"\b(cheat\w*|hacker|harass\w*|toxic|report\w*|offensive)\b", re.I)),
@@ -50,11 +51,12 @@ VIOLENCE_RE = re.compile(r"\b(i('| a)?m going to (kill|hurt|shoot)|bomb|shoot up
 LEGAL_RE = re.compile(r"\b(lawyer|attorney|sue|lawsuit|legal action|small claims)\b", re.I)
 PHONE_RE = re.compile(r"\+?\d[\d\s().-]{8,}\d")
 PASSWORD_RE = re.compile(r"\bpassword\s*(is|:)\s*\S+", re.I)
+MIN_ANSWER_SCORE = 3.0
 WHEN_RE = re.compile(r"\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\byesterday\b|\btoday\b|\blast night\b|\b\d{1,2}[/-]\d{1,2}\b", re.I)
 
 
-def _sleep() -> None:
-    if settings.mock_stage_delay > 0:
+def _sleep(fast: bool = False) -> None:
+    if settings.mock_stage_delay > 0 and not fast:
         time.sleep(settings.mock_stage_delay)
 
 
@@ -124,15 +126,19 @@ def _missing_info(cls: ClassifierOutput, text: str) -> list[str]:
     return items
 
 
-def _compose_reply(persona: Persona, safety: SafetyOutput, hit: SectionHit | None, missing: list[str]) -> str:
+SIGNER_RE = re.compile(r"Sign the reply as ([^.\n]+)\.")
+
+
+def _compose_reply(persona: Persona, safety: SafetyOutput, hit: SectionHit | None, missing: list[str], guidance: str = "") -> str:
     article = hit.article if hit else None
+    signer = m.group(1).strip() if (m := SIGNER_RE.search(guidance)) else "Alex"
     if persona == "ai_assistant":
         opening = "Hi,\n\nI'm the Everdawn Support Assistant, an AI helper for the Everdawn team."
         closing = "Best regards,\nEverdawn Support Assistant"
         handoff = 'You can reply here at any time, or choose "I still need help" to reach a member of the team.'
     else:
-        opening = "Hello,\n\nThis is Alex from the Everdawn team,"
-        closing = "Best regards,\nAlex"
+        opening = f"Hello,\n\nThis is {signer} from the Everdawn team,"
+        closing = f"Best regards,\n{signer}"
         handoff = ""
 
     if safety.escalation_flag:
@@ -196,37 +202,40 @@ def run_mock(
     guidance: str,
     persona: Persona,
     on_stage: StageCallback,
+    fast: bool = False,
 ) -> PipelineResult:
+    """`fast` skips the simulated stage delays (used by the demo seeder)."""
     timings: dict = {"vision": 0.0}
     screenshot_text = ""
     if images:
         on_stage("vision", f"Reading {len(images)} screenshot(s)...")
         t0 = time.perf_counter()
-        _sleep()
+        _sleep(fast)
         screenshot_text = f"[mock] {len(images)} screenshot(s) attached; transcription runs in live mode."
         timings["vision"] = time.perf_counter() - t0
 
     on_stage("classify", "Classifying ticket...")
     t0 = time.perf_counter()
-    _sleep()
+    _sleep(fast)
     cls = _classify(ticket)
     timings["classifier"] = time.perf_counter() - t0
 
     on_stage("retrieve", "Retrieving SOP context and running safety analysis...")
     t0 = time.perf_counter()
-    _sleep()
+    _sleep(fast)
     hits = get_catalog().search_sections(ticket, limit=6)
     safety = _safety(ticket)
     timings["retrieval"] = timings["safety"] = time.perf_counter() - t0
 
     on_stage("draft", "Drafting note, reply, and steps in parallel...")
     t0 = time.perf_counter()
-    _sleep()
-    public_hit = next((h for h in hits if h.article.is_public), None)
-    internal_hit = next((h for h in hits if not h.article.is_public), None)
+    _sleep(fast)
+    # Weak lexical matches don't count as "the KB covers this" (keeps confidence honest).
+    public_hit = next((h for h in hits if h.article.is_public and h.score >= MIN_ANSWER_SCORE), None)
+    internal_hit = next((h for h in hits if not h.article.is_public and h.score >= MIN_ANSWER_SCORE), None)
     article = public_hit.article if public_hit else None
     missing = [] if safety.escalation_flag else _missing_info(cls, ticket)
-    reply = _compose_reply(persona, safety, public_hit, missing)
+    reply = _compose_reply(persona, safety, public_hit, missing, guidance)
 
     citations = [
         Citation(article=h.article.title, section=h.section.heading, article_id=h.article.id, source_url=h.article.source_url)
@@ -236,7 +245,12 @@ def run_mock(
     inv = _section(internal_hit.article, "investigation") if internal_hit else None
     next_steps = (_list_items(inv.text) if inv else [])[:5] or ["Review the ticket and reply to the player personally."]
     if safety.escalation_flag:
-        next_steps = [f"Escalate to {safety.escalation_target}: {safety.escalation_reason}", *next_steps]
+        # Escalations get escalation steps only; normal troubleshooting is irrelevant here.
+        next_steps = [
+            f"Escalate to {safety.escalation_target}: {safety.escalation_reason}",
+            "Read the full thread before replying; the AI has only sent a holding message.",
+            "Reply personally. Don't promise an outcome until the escalation owner confirms.",
+        ]
     note = "\n".join(
         [
             "**Identification**",
@@ -264,7 +278,7 @@ def run_mock(
 
     on_stage("qa", "QA validation...")
     t0 = time.perf_counter()
-    _sleep()
+    _sleep(fast)
     qa_pass = confidence != "low"
     qa = QAResult(
         overall_score=0.94 if qa_pass else 0.71,

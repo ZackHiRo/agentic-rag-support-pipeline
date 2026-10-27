@@ -31,6 +31,13 @@
   --info: oklch(0.52 0.14 245);
   --info-soft: oklch(0.95 0.03 245);
   --shadow-color: 285 30% 20%;
+  /* Chart series: validated categorical order (slots 1-3), plus a neutral for "not yet resolved". */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-neutral: oklch(0.82 0.01 285);
+  --chart-grid: oklch(0.93 0.006 285);
+  --chart-axis: oklch(0.6 0.015 285);
 }
 
 .dark {
@@ -60,6 +67,12 @@
   --info: oklch(0.75 0.12 245);
   --info-soft: oklch(0.28 0.05 245);
   --shadow-color: 285 50% 3%;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-neutral: oklch(0.42 0.02 285);
+  --chart-grid: oklch(0.26 0.02 285);
+  --chart-axis: oklch(0.62 0.02 285);
 }
 
 @theme inline {

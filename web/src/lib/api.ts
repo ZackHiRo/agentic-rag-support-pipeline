@@ -16,7 +16,8 @@ export type ConsoleTicket = S["ConsoleTicketOut"];
 export type Run = S["RunOut"];
 export type TicketEvent = S["EventOut"];
 export type Staff = S["StaffOut"];
-export type TicketPatch = S["TicketPatchIn"];
+// Request bodies: fields with server-side defaults are optional.
+export type TicketPatch = Partial<S["TicketPatchIn"]>;
 export type ConsoleReply = S["ConsoleReplyIn"];
 
 export class ApiError extends Error {

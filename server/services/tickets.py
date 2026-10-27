@@ -93,7 +93,8 @@ def set_status(
         ticket.solved_at = now
         ticket.needs_human = False
         ticket.needs_review = False
-    elif old == TicketStatus.solved:
+    elif old == TicketStatus.solved and new != TicketStatus.closed:
+        # Reopened: it is no longer resolved. (Closing keeps the resolution.)
         ticket.solved_at = None
         ticket.resolved_by = None
     if new == TicketStatus.closed:

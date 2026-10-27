@@ -219,7 +219,10 @@ def ai_draft(ticket_id: int, body: AiDraftIn, session: Session = Depends(get_ses
     """Ask the copilot for a fresh reply draft (never sent to the player automatically)."""
     t = _get(session, ticket_id)
     log_event(session, t, "ai.draft_requested", actor_kind="agent", actor_id=me.id, guidance=body.guidance[:200])
-    enqueue_run(session, t, trigger="agent_draft", guidance=body.guidance)
+    # The draft goes out under this agent's name, not the prompt's default persona.
+    signer = display_name(me).split()[0]
+    guidance = f"Sign the reply as {signer}.\n{body.guidance}".strip()
+    enqueue_run(session, t, trigger="agent_draft", guidance=guidance)
     return _detail(session, t)
 
 

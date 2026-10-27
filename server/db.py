@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -12,9 +14,23 @@ from sqlmodel import Session, SQLModel, create_engine
 from .settings import settings
 
 
+_clock: ContextVar[datetime | None] = ContextVar("clock", default=None)
+
+
 def utcnow() -> datetime:
     """Timezone-aware UTC timestamp (SQLModel stores it as UTC and returns it aware)."""
-    return datetime.now(UTC)
+    return _clock.get() or datetime.now(UTC)
+
+
+@contextmanager
+def frozen_clock(at: datetime) -> Iterator[None]:
+    """Make utcnow() return `at` in this context. Used by the demo seeder to
+    replay realistic ticket histories through the normal domain logic."""
+    token = _clock.set(at)
+    try:
+        yield
+    finally:
+        _clock.reset(token)
 
 
 def _make_engine(url: str):

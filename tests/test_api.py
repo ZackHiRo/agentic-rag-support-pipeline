@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from server.db import engine, utcnow
 from server.models import Ticket
@@ -178,7 +178,7 @@ def test_ai_draft_is_not_sent(player, staff):
     wait_idle()
     d = staff.get(f"/api/console/tickets/{t['id']}").json()
     assert d["runs"][0]["trigger"] == "agent_draft" and d["runs"][0]["status"] == "succeeded"
-    assert "Alex" in d["runs"][0]["result"]["output"]["player_reply"]  # human-agent persona
+    assert "This is Sam from the Everdawn team" in d["runs"][0]["result"]["output"]["player_reply"]  # signed by the requesting agent
     assert len(player.get(f"/api/tickets/{t['ref']}").json()["messages"]) == n
 
 
@@ -225,6 +225,7 @@ def test_solved_tickets_auto_close(player):
     lifecycle.sweep()
     t = player.get(f"/api/tickets/{t['ref']}").json()
     assert t["status"] == "closed"
+    assert t["resolved_by"] == "ai"  # closing must keep who resolved it (reporting depends on it)
     assert player.post(f"/api/tickets/{t['ref']}/messages", data={"body": "hello?"}).status_code == 409
 
 
@@ -232,3 +233,31 @@ def test_stage_keys_map_pipeline_labels():
     assert pipeline.stage_key("Reading 2 screenshot(s)...") == "vision"
     assert pipeline.stage_key("QA validation (retry 1)...") == "qa"
     assert pipeline.stage_key("Something new") == "other"
+
+
+# --- Reporting and demo data ------------------------------------------------------------------------
+
+
+def test_reports_are_staff_only_and_reflect_activity(player, staff):
+    assert player.get("/api/console/reports").status_code == 403
+    before = staff.get("/api/console/reports", params={"days": 7}).json()["kpis"]
+    t = open_ticket(player, "Matchmaking error 105 on PC")
+    player.post(f"/api/tickets/{t['ref']}/resolve")
+    r = staff.get("/api/console/reports", params={"days": 7}).json()
+    assert r["kpis"]["tickets"] == before["tickets"] + 1
+    assert r["kpis"]["resolved_by"]["ai"] == before["resolved_by"]["ai"] + 1
+    assert len(r["volume"]) == 7
+    assert {"topics", "kb_gaps", "pending_aging", "qa", "latency", "top_articles"} <= r.keys()
+
+
+def test_seed_creates_and_resets_only_demo_data(player):
+    from server.seed import reset_demo, seed
+
+    mine = open_ticket(player, "Matchmaking error 105 on PC")
+    seed(tickets=25, days=10)
+    with Session(engine) as s:
+        demo = s.exec(select(Ticket).where(Ticket.demo == True)).all()  # noqa: E712
+        assert len(demo) == 25
+        assert all(t.ref and t.created_at for t in demo)
+        assert reset_demo(s) == 25
+        assert s.get(Ticket, mine["id"]) is not None  # real tickets survive a reset

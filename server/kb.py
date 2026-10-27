@@ -26,12 +26,25 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = frozenset(
     "a an and are as at be but by can do for from has have how i if in is it its my "
     "of on or our so that the their them then there this to was we what when where "
-    "which who why will with you your me im cant dont doesnt keep keeps get got".split()
+    "which who why will with you your me im cant dont doesnt keep keeps get got up out "
+    "never after every time going just still all any now also again one no not yes "
+    "there here been being were would could should".split()
 )
 
 
+_SUFFIXES = ("ment", "ing", "ion", "ed", "es", "s")
+
+
+def _stem(token: str) -> str:
+    """Very light suffix stripping so "disconnected"/"disconnects" match "disconnect"."""
+    for suf in _SUFFIXES:
+        if len(token) > len(suf) + 3 and token.endswith(suf):
+            return token[: -len(suf)]
+    return token
+
+
 def tokenize(text: str) -> list[str]:
-    return [t for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS]
+    return [_stem(t) for t in _TOKEN_RE.findall(text.lower()) if t not in _STOPWORDS]
 
 
 @dataclass
@@ -127,7 +140,7 @@ class Catalog:
         pub_docs = [tokenize(f"{a.title} {a.title} {a.summary} {a.summary} {a.body}") for a in public]
         # Section-level index (all articles) for the mock retriever.
         sec_refs = [(a, s) for a in articles for s in a.sections]
-        sec_docs = [tokenize(f"{a.title} {s.heading} {s.text}") for a, s in sec_refs]
+        sec_docs = [tokenize(f"{a.title} {a.summary if a.is_public else ''} {s.heading} {s.text}") for a, s in sec_refs]
         with self._lock:
             self.articles = articles
             self.by_slug = {a.slug: a for a in articles}
@@ -148,7 +161,8 @@ class Catalog:
         return out
 
     def suggest(self, query: str, limit: int = 5) -> list[tuple[Article, float]]:
-        tokens = self._expand(tokenize(query))
+        raw = [t for t in _TOKEN_RE.findall(query.lower()) if t not in _STOPWORDS]
+        tokens = self._expand(sorted(set(tokenize(query)) | set(raw)))
         if not tokens or self._pub_bm25 is None:
             return []
         scores = self._pub_bm25.get_scores(tokens)
