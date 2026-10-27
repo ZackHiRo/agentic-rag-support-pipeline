@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..config import get_qa_adapter
+from .persona import to_ai_persona
 from ..llm import LLMAdapter
 from ..retrieve import Hit
 from ..schemas import (
@@ -29,9 +30,10 @@ ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "prompts"
 
 
-@lru_cache(maxsize=1)
-def _system_prompt() -> str:
-    return (PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
+@lru_cache(maxsize=2)
+def _system_prompt(persona: str = "human_agent") -> str:
+    prompt = (PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
+    return to_ai_persona(prompt) if persona == "ai_assistant" else prompt
 
 
 def _context_titles(hits: list[Hit]) -> str:
@@ -66,8 +68,9 @@ def run_qa(
             "This reply is sent directly by the AI assistant, not by Alex. For "
             "`agent_intro_line` and `content_structure`, expect a greeting followed by "
             "\"I'm the Everdawn Support Assistant, an AI helper for the Everdawn team.\" "
-            "and the sign-off \"Best regards,\\nEverdawn Support Assistant\". A reply "
-            "that uses the name Alex or claims to be human FAILS `agent_intro_line`.\n\n"
+            "and the sign-off \"Best regards,\\nEverdawn Support Assistant\". For this "
+            "persona `agent_intro_line` is CRITICAL (severity critical): a reply that uses a "
+            "human name or does not say it is an AI must fail it, with revision feedback.\n\n"
         )
 
     user = (
@@ -92,7 +95,7 @@ def run_qa(
     try:
         return adapter.parse(
             messages=[
-                {"role": "system", "content": _system_prompt()},
+                {"role": "system", "content": _system_prompt(persona)},
                 {"role": "user", "content": user},
             ],
             response_format=QAResult,

@@ -26,6 +26,13 @@ export function useLiveEvents(url: string | null, onEvent: (e: LiveEvent) => voi
     };
     const types = ["run.queued", "run.started", "run.stage", "run.finished", "ticket.updated", "ticket.created"];
     types.forEach((t) => es.addEventListener(t, listener));
+    // The server ends streams periodically and EventSource reconnects; resync on
+    // every (re)connect so nothing that happened in between is missed.
+    let opened = false;
+    es.onopen = () => {
+      if (opened) handler.current({ type: "stream.reconnected", ticket_id: 0 });
+      opened = true;
+    };
     return () => es.close();
   }, [url]);
 }

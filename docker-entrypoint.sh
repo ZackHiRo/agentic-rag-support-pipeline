@@ -44,4 +44,4 @@ if [ "${SEED_DEMO:-true}" = "true" ]; then
 fi
 
 echo "► Help center: http://localhost:8000   Console: http://localhost:8000/console"
-exec uvicorn server.main:app --host 0.0.0.0 --port 8000 --proxy-headers
+exec uvicorn server.main:app --host 0.0.0.0 --port 8000 --proxy-headers --timeout-graceful-shutdown 10

@@ -41,7 +41,7 @@ export function useConsoleLive() {
   const qc = useQueryClient();
   useLiveEvents("/api/console/stream", (e) => {
     qc.invalidateQueries({ queryKey: ["console-list"] });
-    qc.invalidateQueries({ queryKey: ["console-ticket", e.ticket_id] });
+    qc.invalidateQueries({ queryKey: e.type === "stream.reconnected" ? ["console-ticket"] : ["console-ticket", e.ticket_id] });
     if (e.type === "run.finished" || e.type === "ticket.updated") qc.invalidateQueries({ queryKey: ["reports"] });
   });
 }

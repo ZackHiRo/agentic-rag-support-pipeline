@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Literal
 
 from ..config import get_reply_adapter
+from .persona import to_ai_persona
 from ..llm import LLMAdapter
 from ..retrieve import Hit
 from ..schemas import ClassifierOutput, ReplyOutput, SafetyOutput
@@ -35,9 +36,10 @@ def _system_prompt(persona: Persona = "human_agent") -> str:
     tone_rules = (PROMPTS_DIR / "tone_rules.md").read_text(encoding="utf-8")
     prompt = raw.replace("{TONE_RULES}", tone_rules)
     if persona == "ai_assistant":
-        # Appended last so it overrides the intro/sign-off rules above it.
+        # Rewrite the human-agent intro/sign-off rules (an appended override alone
+        # is not reliable), then add the AI-specific rules.
         override = (PROMPTS_DIR / "persona_ai_assistant.md").read_text(encoding="utf-8")
-        prompt = f"{prompt}\n\n---\n\n{override}"
+        prompt = f"{to_ai_persona(prompt)}\n\n---\n\n{override}"
     return prompt
 
 

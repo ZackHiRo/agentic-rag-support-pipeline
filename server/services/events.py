@@ -72,14 +72,21 @@ def sse_format(payload: dict) -> str:
     return f"event: {payload.get('type', 'message')}\ndata: {json.dumps(payload, default=str)}\n\n"
 
 
+# Streams end after this long and the browser's EventSource reconnects (and
+# resyncs). Without a cap, open streams would block graceful server shutdown.
+SSE_MAX_SECONDS = 90
+
+
 def sse_response(request, channel: str):
     """Server-Sent Events stream for one channel, with keep-alive pings."""
     from starlette.responses import StreamingResponse
 
     async def gen():
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + SSE_MAX_SECONDS
         async with broker.subscribe(channel) as q:
-            yield ": connected\n\n"
-            while not await request.is_disconnected():
+            yield "retry: 1500\n: connected\n\n"
+            while loop.time() < deadline and not await request.is_disconnected():
                 try:
                     payload = await asyncio.wait_for(q.get(), timeout=15)
                 except TimeoutError:

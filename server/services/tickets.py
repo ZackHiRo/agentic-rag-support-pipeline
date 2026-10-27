@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 from sqlmodel import Session, col, select
@@ -31,6 +32,8 @@ from ..schemas import (
     RunProgressOut,
     StageOut,
 )
+from src.agents.persona import AI_INTRO_EN, AI_INTRO_FR, AI_NAME
+
 from .pipeline import PipelineResult
 from .routing import Decision
 
@@ -178,6 +181,31 @@ def compose_conversation(session: Session, ticket: Ticket) -> str:
 
 # --- Applying an AI run ------------------------------------------------------------------
 
+_HUMAN_INTRO_RE = re.compile(r"This is \w+ from the Everdawn team,?", re.I)
+_HUMAN_INTRO_FR_RE = re.compile(r"Ici \w+, de l'équipe Everdawn,?", re.I)
+
+
+def ensure_ai_disclosure(reply: str) -> str:
+    """Guarantee an AI-sent reply says it's from the AI and isn't signed by a person.
+
+    The prompts and QA already ask for this; this is the deterministic last line
+    of defence, because disclosure must not depend on model compliance.
+    """
+    text = _HUMAN_INTRO_RE.sub(AI_INTRO_EN, reply)
+    text = _HUMAN_INTRO_FR_RE.sub(AI_INTRO_FR, text)
+    # A human sign-off on the last line ("Best regards,\nAlex") becomes the assistant's.
+    lines = text.rstrip().split("\n")
+    if len(lines) >= 2 and re.match(r"(best regards|regards|cheers|thanks|cordialement|bien à vous),?$", lines[-2].strip(), re.I):
+        if lines[-1].strip() and AI_NAME.lower() not in lines[-1].lower():
+            lines[-1] = AI_NAME
+    text = "\n".join(lines)
+    if AI_NAME.lower() not in text.lower() and "assistant support d'everdawn" not in text.lower():
+        # No disclosure at all: add it after the greeting line.
+        first, _, rest = text.partition("\n")
+        text = f"{first}\n\n{AI_INTRO_EN}\n{rest}" if rest else f"{AI_INTRO_EN}\n\n{first}"
+    return text
+
+
 
 def _citations(result: PipelineResult) -> tuple[list[dict], list[dict]]:
     """Player-safe citations (public articles only) plus a few related articles."""
@@ -226,7 +254,7 @@ def apply_ai_result(
     if decision.send_to_player:
         cites, related = _citations(result)
         add_message(
-            session, ticket, author_kind=AuthorKind.ai, body=result.output.player_reply.strip(),
+            session, ticket, author_kind=AuthorKind.ai, body=ensure_ai_disclosure(result.output.player_reply.strip()),
             ai_run_id=run.id, citations=cites,
             meta={"related": related, "crisis_resources": decision.crisis_resources, "decision": decision.kind},
         )
