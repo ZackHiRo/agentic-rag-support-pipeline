@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 # Article / KB metadata
 # ---------------------------------------------------------------------------
 
-ArticleType = Literal["procedure", "reference", "known-issue", "patch-note", "handbook"]
+ArticleType = Literal["procedure", "reference", "known-issue", "patch-note", "handbook", "help-article"]
 ArticleCategory = Literal["game", "general"]
 
 
@@ -35,6 +35,7 @@ class FrontMatter(BaseModel):
     source_html: str = ""
     source_hash: str = ""
     last_updated: str = ""
+    audience: Literal["public", "internal"] = "internal"
 
 
 class Chunk(BaseModel):

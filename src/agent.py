@@ -159,11 +159,14 @@ def run_agent(
     images: list[bytes] | None = None,
     guidance: str = "",
     on_stage: Callable[[str], None] | None = None,
+    persona: str = "human_agent",
 ) -> AgentRun:
     """End-to-end multi-agent pass. Provider-agnostic — no OpenAI imports here.
 
     ``on_stage`` is called with a short human-readable label as each stage
-    starts, so callers (e.g. the Streamlit UI) can show live progress.
+    starts, so callers can show live progress. ``persona`` selects how the
+    player reply is written: "human_agent" (a draft for a human to send) or
+    "ai_assistant" (sent directly to the player, discloses it is an AI).
     """
     report = on_stage or (lambda _label: None)
     images = images or []
@@ -222,6 +225,7 @@ def run_agent(
         screenshot_text=screenshot_text,
         timings=timings,
         on_stage=report,
+        persona=persona,
     )
 
     return AgentRun(

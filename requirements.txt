@@ -14,6 +14,14 @@ tiktoken>=0.8.0
 tqdm>=4.67.0
 pillow>=10.4.0
 
+# ── Support platform backend (server/) ───────────────────────────────────────
+fastapi[standard]>=0.115.0   # includes uvicorn + python-multipart
+sqlmodel>=0.0.48             # stores timezone-aware UTC datetimes (the server relies on this)
+itsdangerous>=2.2.0          # signed session cookies and magic links
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+pytest>=8.3.0
+
 # ── Optional: Anthropic provider ─────────────────────────────────────────────
 # Uncomment if you set LLM_PROVIDER=anthropic in .env
 # anthropic>=0.40.0

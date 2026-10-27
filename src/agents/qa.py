@@ -53,10 +53,22 @@ def run_qa(
     steps_out: StepsOutput,
     hits: list[Hit],
     *,
+    persona: str = "human_agent",
     adapter: LLMAdapter | None = None,
 ) -> QAResult:
     """Run the QA Agent."""
     adapter = adapter or get_qa_adapter()
+
+    persona_block = ""
+    if persona == "ai_assistant":
+        persona_block = (
+            "# Reply persona: AI assistant\n\n"
+            "This reply is sent directly by the AI assistant, not by Alex. For "
+            "`agent_intro_line` and `content_structure`, expect a greeting followed by "
+            "\"I'm the Everdawn Support Assistant, an AI helper for the Everdawn team.\" "
+            "and the sign-off \"Best regards,\\nEverdawn Support Assistant\". A reply "
+            "that uses the name Alex or claims to be human FAILS `agent_intro_line`.\n\n"
+        )
 
     user = (
         "# Incoming ticket\n\n"
@@ -73,6 +85,7 @@ def run_qa(
         f"```json\n{reply_out.model_dump_json(indent=2)}\n```\n\n"
         "# Next Steps Agent output\n\n"
         f"```json\n{steps_out.model_dump_json(indent=2)}\n```\n\n"
+        f"{persona_block}"
         "Evaluate all outputs against the full checklist and produce the QAResult JSON now."
     )
 

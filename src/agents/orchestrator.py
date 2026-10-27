@@ -101,6 +101,7 @@ def run_pipeline(
     screenshot_text: str = "",
     timings: StageTimings | None = None,
     on_stage: Callable[[str], None] | None = None,
+    persona: str = "human_agent",
 ) -> PipelineRun:
     """Run stages 4-5 of the pipeline (parallel drafting + QA loop).
 
@@ -116,7 +117,7 @@ def run_pipeline(
     t_draft = time.perf_counter()
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
         fut_note  = ex.submit(run_note,  ticket, classification, safety, hits)
-        fut_reply = ex.submit(run_reply, ticket, classification, safety, hits, guidance)
+        fut_reply = ex.submit(run_reply, ticket, classification, safety, hits, guidance, persona=persona)
         fut_steps = ex.submit(run_steps, ticket, classification, safety, hits)
         note_out  = fut_note.result()
         reply_out = fut_reply.result()
@@ -130,7 +131,9 @@ def run_pipeline(
     for attempt in range(MAX_RETRIES + 1):
         report("QA validation..." if attempt == 0 else f"QA validation (retry {attempt})...")
         t_qa = time.perf_counter()
-        qa = run_qa(ticket, classification, safety, note_out, reply_out, steps_out, hits)
+        qa = run_qa(
+            ticket, classification, safety, note_out, reply_out, steps_out, hits, persona=persona
+        )
         timings.qa.append(time.perf_counter() - t_qa)
         qa_results.append(qa)
 
@@ -148,7 +151,8 @@ def run_pipeline(
                 )
             if qa.reply_revision.strip():
                 futs["reply"] = ex.submit(
-                    run_reply, ticket, classification, safety, hits, guidance, qa.reply_revision
+                    run_reply, ticket, classification, safety, hits, guidance, qa.reply_revision,
+                    persona=persona,
                 )
             if qa.steps_revision.strip():
                 futs["steps"] = ex.submit(
