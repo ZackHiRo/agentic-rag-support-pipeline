@@ -3,6 +3,7 @@
     python -m server.seed                    # 300 tickets over the last 60 days
     python -m server.seed --tickets 500 --days 90
     python -m server.seed --reset            # remove all demo data (and nothing else)
+    python -m server.seed --if-empty         # seed only if there is no demo data yet
 
 Every ticket is replayed through the real domain logic (mock pipeline,
 routing policy, status transitions) with the clock frozen at each historical
@@ -290,8 +291,14 @@ def main() -> None:
     parser.add_argument("--tickets", type=int, default=300)
     parser.add_argument("--days", type=int, default=60)
     parser.add_argument("--reset", action="store_true", help="Delete all demo data and exit.")
+    parser.add_argument("--if-empty", action="store_true", help="Do nothing if demo data already exists.")
     args = parser.parse_args()
     init_db()
+    if args.if_empty:
+        with Session(engine) as session:
+            if session.exec(select(Ticket.id).where(Ticket.demo == True)).first():  # noqa: E712
+                print("Demo data already present; skipping.")
+                return
     with Session(engine) as session:
         removed = reset_demo(session)
     if args.reset:

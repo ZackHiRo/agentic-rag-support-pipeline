@@ -12,7 +12,7 @@ import contextlib
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
@@ -67,6 +67,8 @@ if WEB_DIST.exists():
     @app.get("/{path:path}", include_in_schema=False)
     def spa(path: str):
         """Serve the SPA: real files from web/dist, everything else gets index.html."""
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(404, "Not found")
         candidate = (WEB_DIST / path).resolve()
         if path and candidate.is_file() and WEB_DIST.resolve() in candidate.parents:
             return FileResponse(candidate)

@@ -1,18 +1,22 @@
 .env
+.git/
 .venv/
 venv/
 __pycache__/
 *.pyc
-*.pyo
-.chroma/
 .pytest_cache/
+.chroma/
+data/
 .DS_Store
 *.egg-info/
-.ipynb_checkpoints/
-**/*_files/
+tests/
 
-# Internal knowledge base — only include kb/demo/
-game/
-general/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+web/openapi.json
+
+# Internal knowledge base: only the committed demo SOPs and public help articles
 kb/*
 !kb/demo/
+!kb/help/

@@ -1,38 +1,31 @@
 services:
-  support-agent:
+  app:
     build: .
-    container_name: support-agent
+    container_name: everdawn-support
     ports:
-      - "8501:8501"
-
-    # ── Secrets ──────────────────────────────────────────────────────────────
-    # Never bake keys into the image. Pass via env_file or environment block.
+      - "8000:8000"
     env_file:
-      - .env           # copy .env.example → .env and fill in before running
-
-    # ── Volume mounts ─────────────────────────────────────────────────────────
+      - path: .env            # copy .env.example → .env; optional in mock mode
+        required: false
+    environment:
+      PIPELINE_MODE: ${PIPELINE_MODE:-mock}
+      # To use Postgres: `docker compose --profile postgres up` and uncomment:
+      # DATABASE_URL: postgresql+psycopg://everdawn:everdawn@db:5432/everdawn
     volumes:
-      # Knowledge base (markdown) — includes kb/demo/ out of the box
-      - ./kb:/app/kb
-
-      # Vector index — persisted between container restarts
-      - ./.chroma:/app/.chroma
-
-      # Entrypoint script
-      - ./docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
-
-      # Prompt bundles & code — mount so edits take effect immediately without rebuilding
-      - ./prompts:/app/prompts
-      - ./src:/app/src
-
-    # ── Optional: force a full KB rebuild on next startup ────────────────────
-    # environment:
-    #   - REBUILD_KB=true
-
+      - ./data:/app/data        # SQLite database + uploaded screenshots
+      - ./.chroma:/app/.chroma  # vector index (live mode)
+      - ./kb:/app/kb            # knowledge base markdown
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s    # give the KB build time to finish on first run
+
+  db:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_USER: everdawn
+      POSTGRES_PASSWORD: everdawn
+      POSTGRES_DB: everdawn
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
