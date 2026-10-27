@@ -24,3 +24,5 @@ data/
 # Frontend
 node_modules/
 web/dist/
+web/openapi.json
+web/*.tsbuildinfo

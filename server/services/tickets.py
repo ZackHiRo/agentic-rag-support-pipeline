@@ -187,8 +187,11 @@ def _citations(result: PipelineResult) -> tuple[list[dict], list[dict]]:
         if art and art.slug not in cited:
             cited[art.slug] = {"slug": art.slug, "title": art.title, "section": c.section}
     related: dict[str, dict] = {}
-    for h in result.hits:
-        if h.audience != "public":
+    public_hits = [h for h in result.hits if h.audience == "public"]
+    # Only suggest related articles that are nearly as relevant as the best match.
+    floor = 0.5 * max((h.score for h in public_hits), default=0.0)
+    for h in public_hits:
+        if h.score < floor:
             continue
         art = catalog.resolve_public(article_id=h.article_id, title=h.title)
         if art and art.slug not in cited and art.slug not in related:

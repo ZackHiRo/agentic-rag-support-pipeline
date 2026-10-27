@@ -124,7 +124,8 @@ def _missing_info(cls: ClassifierOutput, text: str) -> list[str]:
     return items
 
 
-def _compose_reply(persona: Persona, safety: SafetyOutput, article: Article | None, missing: list[str]) -> str:
+def _compose_reply(persona: Persona, safety: SafetyOutput, hit: SectionHit | None, missing: list[str]) -> str:
+    article = hit.article if hit else None
     if persona == "ai_assistant":
         opening = "Hi,\n\nI'm the Everdawn Support Assistant, an AI helper for the Everdawn team."
         closing = "Best regards,\nEverdawn Support Assistant"
@@ -151,11 +152,15 @@ def _compose_reply(persona: Persona, safety: SafetyOutput, article: Article | No
 
     parts = [opening]
     if article:
-        sec = _section(article, "workaround", "quick fixes", "reset", "where to find", "report in game", "server-side")
+        # Prefer the section that actually matched the ticket, if it has steps to follow.
+        sec = hit.section if _list_items(hit.section.text) else _section(
+            article, "workaround", "quick fixes", "where to find", "report in game", "server-side"
+        )
         steps = _list_items(sec.text) if sec else []
         parts.append(f'Thanks for getting in touch. This looks like the issue covered in our article "{article.title}".')
         if steps:
-            parts.append("Here's what to try:\n\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(steps[:5], start=1)))
+            numbered = "\n".join(f"{i}. {s}" for i, s in enumerate(steps[:5], start=1))
+            parts.append(f"**{sec.heading}**\n\n{numbered}")
         elif sec:
             parts.append(sec.text)
     else:
@@ -221,7 +226,7 @@ def run_mock(
     internal_hit = next((h for h in hits if not h.article.is_public), None)
     article = public_hit.article if public_hit else None
     missing = [] if safety.escalation_flag else _missing_info(cls, ticket)
-    reply = _compose_reply(persona, safety, article, missing)
+    reply = _compose_reply(persona, safety, public_hit, missing)
 
     citations = [
         Citation(article=h.article.title, section=h.section.heading, article_id=h.article.id, source_url=h.article.source_url)
