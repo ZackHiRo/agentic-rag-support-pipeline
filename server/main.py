@@ -23,7 +23,7 @@ from .kb import get_catalog
 from .routers import auth, console, help, reports
 from .services import lifecycle
 from .services.events import broker
-from .services.jobs import wait_idle
+from .services.jobs import recover_interrupted_runs, wait_idle
 from .settings import ROOT, settings
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -39,6 +39,7 @@ async def lifespan(_: FastAPI):
         ensure_demo_staff(s)
     get_catalog()
     broker.bind(asyncio.get_running_loop())
+    recover_interrupted_runs()
     log.info("pipeline mode: %s", settings.pipeline_mode)
     sweeper = asyncio.create_task(lifecycle.run_forever()) if settings.lifecycle_interval_seconds > 0 else None
     yield

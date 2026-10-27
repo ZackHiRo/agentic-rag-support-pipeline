@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..config import get_qa_adapter
-from .persona import to_ai_persona
+from .persona import AI_INTRO_EN, AI_SIGNATURE, to_ai_persona
 from ..llm import LLMAdapter
 from ..retrieve import Hit
 from ..schemas import (
@@ -65,12 +65,12 @@ def run_qa(
     if persona == "ai_assistant":
         persona_block = (
             "# Reply persona: AI assistant\n\n"
-            "This reply is sent directly by the AI assistant, not by Alex. For "
-            "`agent_intro_line` and `content_structure`, expect a greeting followed by "
-            "\"I'm the Everdawn Support Assistant, an AI helper for the Everdawn team.\" "
-            "and the sign-off \"Best regards,\\nEverdawn Support Assistant\". For this "
-            "persona `agent_intro_line` is CRITICAL (severity critical): a reply that uses a "
-            "human name or does not say it is an AI must fail it, with revision feedback.\n\n"
+            "This reply is sent directly by the AI assistant. For `agent_intro_line` and "
+            f"`content_structure`, expect a greeting followed by \"{AI_INTRO_EN}\" and the "
+            f"sign-off \"Best regards,\\n{AI_SIGNATURE}\". For this persona "
+            "`agent_intro_line` is CRITICAL (severity critical): a reply that does not "
+            "plainly say it comes from an AI, or implies a human wrote it, must fail it, "
+            "with revision feedback.\n\n"
         )
 
     user = (

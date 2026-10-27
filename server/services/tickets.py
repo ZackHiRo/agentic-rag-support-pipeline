@@ -32,12 +32,11 @@ from ..schemas import (
     RunProgressOut,
     StageOut,
 )
-from src.agents.persona import AI_INTRO_EN, AI_INTRO_FR, AI_NAME
+from src.agents.persona import AI_INTRO_EN, AI_INTRO_FR, AI_NAME, AI_SIGNATURE, DISCLOSURE_RE
 
 from .pipeline import PipelineResult
 from .routing import Decision
 
-AI_NAME = "Everdawn Support Assistant"
 SYSTEM_NAME = "Everdawn Support"
 PRIORITY_RANK = {p.value: i for i, p in enumerate(Priority)}
 TICKET_REF_OFFSET = 1000
@@ -186,21 +185,23 @@ _HUMAN_INTRO_FR_RE = re.compile(r"Ici \w+, de l'équipe Everdawn,?", re.I)
 
 
 def ensure_ai_disclosure(reply: str) -> str:
-    """Guarantee an AI-sent reply says it's from the AI and isn't signed by a person.
+    """Guarantee an AI-sent reply says plainly that it comes from an AI.
 
-    The prompts and QA already ask for this; this is the deterministic last line
-    of defence, because disclosure must not depend on model compliance.
+    The assistant keeps a friendly name; what matters is the disclosure. The
+    prompts and QA already ask for it; this is the deterministic last line of
+    defence, because disclosure must not depend on model compliance.
     """
-    text = _HUMAN_INTRO_RE.sub(AI_INTRO_EN, reply)
+    text = re.sub(r"(,\s*AI Support Assistant){2,}", ", AI Support Assistant", reply, flags=re.I)
+    text = _HUMAN_INTRO_RE.sub(AI_INTRO_EN, text)
     text = _HUMAN_INTRO_FR_RE.sub(AI_INTRO_FR, text)
-    # A human sign-off on the last line ("Best regards,\nAlex") becomes the assistant's.
+    # A sign-off that doesn't mention AI ("Best regards,\nAlex") gets the AI signature.
     lines = text.rstrip().split("\n")
     if len(lines) >= 2 and re.match(r"(best regards|regards|cheers|thanks|cordialement|bien à vous),?$", lines[-2].strip(), re.I):
-        if lines[-1].strip() and AI_NAME.lower() not in lines[-1].lower():
-            lines[-1] = AI_NAME
+        if lines[-1].strip() and not DISCLOSURE_RE.search(lines[-1]) and "AI" not in lines[-1]:
+            lines[-1] = AI_SIGNATURE
     text = "\n".join(lines)
-    if AI_NAME.lower() not in text.lower() and "assistant support d'everdawn" not in text.lower():
-        # No disclosure at all: add it after the greeting line.
+    if not DISCLOSURE_RE.search(text):
+        # Still no disclosure anywhere: add it right after the greeting line.
         first, _, rest = text.partition("\n")
         text = f"{first}\n\n{AI_INTRO_EN}\n{rest}" if rest else f"{AI_INTRO_EN}\n\n{first}"
     return text

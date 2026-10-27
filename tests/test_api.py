@@ -36,7 +36,8 @@ def test_ai_answers_and_player_confirms(player):
     assert t["status"] == "pending" and t["ai_state"] == "idle"
     ai = t["messages"][-1]
     assert ai["author_kind"] == "ai"
-    assert "AI helper" in ai["body"] and "Alex" not in ai["body"]
+    assert "AI support assistant" in ai["body"] and "This is Alex from the Everdawn team" not in ai["body"]
+    assert ai["author_name"] == "Alex"
     assert [c["slug"] for c in ai["citations"]] == ["matchmaking-error-105"]
     # Internal SOPs and the AI's internal note must not reach the player.
     assert all(m["visibility"] == "public" for m in t["messages"])
@@ -261,3 +262,20 @@ def test_seed_creates_and_resets_only_demo_data(player):
         assert all(t.ref and t.created_at for t in demo)
         assert reset_demo(s) == 25
         assert s.get(Ticket, mine["id"]) is not None  # real tickets survive a reset
+
+
+def test_interrupted_runs_are_requeued_on_startup(player):
+    from server.models import AiRun, RunStatus
+    from server.services.jobs import recover_interrupted_runs
+
+    t = open_ticket(player, "Matchmaking error 105 on PC")
+    with Session(engine) as s:  # simulate a crash mid-run
+        ticket = s.get(Ticket, t["id"])
+        ticket.ai_state = "working"
+        s.add(AiRun(ticket_id=ticket.id, trigger="player_reply", status=RunStatus.running))
+        s.commit()
+    assert recover_interrupted_runs() == 1
+    wait_idle()
+    t = player.get(f"/api/tickets/{t['ref']}").json()
+    assert t["ai_state"] == "idle" and t["active_run"] is None
+    assert [m["author_kind"] for m in t["messages"]].count("ai") == 2  # the re-queued run answered

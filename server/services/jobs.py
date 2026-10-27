@@ -19,12 +19,12 @@ from pathlib import Path
 from sqlmodel import Session, col, select
 
 from ..db import engine, utcnow
-from ..models import AiRun, Attachment, Message, RunStatus, Ticket
+from ..models import AiRun, Attachment, Message, RunStatus, Ticket, TicketStatus
 from ..settings import settings
 from .events import notify_ticket
 from .pipeline import run_pipeline
 from .routing import RunSignals, decide
-from .tickets import apply_ai_failure, apply_ai_result, compose_conversation
+from .tickets import apply_ai_failure, apply_ai_result, compose_conversation, log_event
 
 log = logging.getLogger("everdawn.jobs")
 
@@ -46,6 +46,27 @@ def enqueue_run(session: Session, ticket: Ticket, *, trigger: str, guidance: str
     _futures.add(fut)
     fut.add_done_callback(_futures.discard)
     return run
+
+
+def recover_interrupted_runs() -> int:
+    """Called at startup: runs a restart or crash left queued/running would
+    otherwise keep their tickets on "Working on it" forever. Mark them failed and
+    re-queue the player-facing ones (staff can simply ask for a new draft)."""
+    with Session(engine) as s:
+        stale = s.exec(select(AiRun).where(col(AiRun.status).in_([RunStatus.queued, RunStatus.running]))).all()
+        retry: list[tuple[int, str, str]] = []
+        for run in stale:
+            run.status, run.error, run.finished_at = RunStatus.failed, "Interrupted by a server restart.", utcnow()
+            ticket = s.get(Ticket, run.ticket_id)
+            log_event(s, ticket, "ai.interrupted", actor_kind="system", run_id=run.id)
+            if run.trigger != "agent_draft" and ticket.status not in (TicketStatus.solved, TicketStatus.closed):
+                retry.append((ticket.id, run.trigger, run.guidance))
+        s.commit()
+        for ticket_id, trigger, guidance in retry:
+            enqueue_run(s, s.get(Ticket, ticket_id), trigger=trigger, guidance=guidance)
+    if stale:
+        log.warning("recovered %d interrupted AI run(s); re-queued %d", len(stale), len(retry))
+    return len(stale)
 
 
 def wait_idle(timeout: float = 30.0) -> None:

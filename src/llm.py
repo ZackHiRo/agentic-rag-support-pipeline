@@ -52,6 +52,11 @@ from pydantic import BaseModel
 
 T = TypeVar("T", bound=BaseModel)
 
+# The SDK default read timeout is 10 minutes, so one stalled request would freeze
+# a ticket. Fail fast and let the SDK retry instead.
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "60"))
+LLM_MAX_RETRIES = int(os.getenv("LLM_MAX_RETRIES", "2"))
+
 # Optional heavy imports — only loaded when the relevant provider is used.
 _openai_client_cache: dict[str, Any] = {}
 _anthropic_client_cache: dict[str, Any] = {}
@@ -134,7 +139,7 @@ def _get_openai_client(config: LLMConfig):
             kwargs["api_key"] = config.api_key
         if config.base_url:
             kwargs["base_url"] = config.base_url
-        _openai_client_cache[key] = OpenAI(**kwargs)
+        _openai_client_cache[key] = OpenAI(timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES, **kwargs)
     return _openai_client_cache[key]
 
 
@@ -193,7 +198,7 @@ def _get_anthropic_client(config: LLMConfig):
         kwargs: dict[str, Any] = {}
         if config.api_key:
             kwargs["api_key"] = config.api_key
-        _anthropic_client_cache[key] = ant.Anthropic(**kwargs)
+        _anthropic_client_cache[key] = ant.Anthropic(timeout=LLM_TIMEOUT_SECONDS, max_retries=LLM_MAX_RETRIES, **kwargs)
     return _anthropic_client_cache[key]
 
 

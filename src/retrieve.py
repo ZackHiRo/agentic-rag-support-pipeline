@@ -62,7 +62,8 @@ def _tokenize(text: str) -> list[str]:
 
 class Retriever:
     def __init__(self) -> None:
-        self._openai = OpenAI()
+        # Embedding calls are small: time out quickly and retry rather than hang.
+        self._openai = OpenAI(timeout=float(os.getenv("EMBED_TIMEOUT_SECONDS", "30")), max_retries=3)
         self._chroma = chromadb.PersistentClient(path=str(CHROMA_DIR), settings=Settings(anonymized_telemetry=False))
         self._collection = self._chroma.get_or_create_collection(COLLECTION_NAME)
         # BM25 index cache.

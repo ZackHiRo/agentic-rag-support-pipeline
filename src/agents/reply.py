@@ -39,7 +39,7 @@ def _system_prompt(persona: Persona = "human_agent") -> str:
         # Rewrite the human-agent intro/sign-off rules (an appended override alone
         # is not reliable), then add the AI-specific rules.
         override = (PROMPTS_DIR / "persona_ai_assistant.md").read_text(encoding="utf-8")
-        prompt = f"{to_ai_persona(prompt)}\n\n---\n\n{override}"
+        prompt = f"{to_ai_persona(prompt)}\n\n---\n\n{to_ai_persona(override)}"
     return prompt
 
 

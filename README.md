@@ -12,7 +12,7 @@ It started as an agent-assist copilot. The original problem: one 22K-token promp
 
 The fix was a pipeline of focused agents, each seeing only the context it needs. With QA and safety in place, the next question was whether the AI could answer players directly. This platform answers that, with guardrails:
 
-- **The AI replies first, every time,** and says it's an AI (EU AI Act Art. 50 transparency).
+- **The AI replies first, every time,** under a friendly name ("Alex", configurable) while always saying it's an AI (EU AI Act Art. 50 transparency). A deterministic server-side check enforces the disclosure even if a model slips.
 - **A deterministic routing policy** (`server/services/routing.py`, unit-tested) decides what happens next. The model never decides alone.
 - **Safety flags** (legal threats, threats of violence, self-harm) get a calm holding reply and go to the top of the human queue. Self-harm signals also show crisis resources to the player right away.
 - **Players are always one click from a person** ("I still need help"). Once a human replies, the AI stays out of that ticket.
@@ -98,7 +98,7 @@ For live mode, embed the knowledge base once with `python -m src.ingest`.
 
 | Command | What it does |
 |---|---|
-| `pytest` | 34 backend tests (routing policy, lifecycle, API flows, persona wiring, reports, seeding), all offline |
+| `pytest` | 41 backend tests (routing policy, lifecycle, API flows, persona wiring, reports, seeding), all offline |
 | `python -m server.seed --reset` | Remove demo data (real tickets are untouched) |
 | `cd web && npm run gen:api` | Regenerate TypeScript API types from the FastAPI OpenAPI schema |
 | `cd web && npm run build` | Production build; FastAPI serves `web/dist` automatically |

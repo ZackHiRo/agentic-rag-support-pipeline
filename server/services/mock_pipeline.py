@@ -17,6 +17,7 @@ from __future__ import annotations
 import re
 import time
 
+from src.agents.persona import AI_INTRO_EN, AI_SIGNATURE
 from src.schemas import (
     AgentOutput,
     Citation,
@@ -133,8 +134,8 @@ def _compose_reply(persona: Persona, safety: SafetyOutput, hit: SectionHit | Non
     article = hit.article if hit else None
     signer = m.group(1).strip() if (m := SIGNER_RE.search(guidance)) else "Alex"
     if persona == "ai_assistant":
-        opening = "Hi,\n\nI'm the Everdawn Support Assistant, an AI helper for the Everdawn team."
-        closing = "Best regards,\nEverdawn Support Assistant"
+        opening = f"Hi,\n\n{AI_INTRO_EN}"
+        closing = f"Best regards,\n{AI_SIGNATURE}"
         handoff = 'You can reply here at any time, or choose "I still need help" to reach a member of the team.'
     else:
         opening = f"Hello,\n\nThis is {signer} from the Everdawn team,"
