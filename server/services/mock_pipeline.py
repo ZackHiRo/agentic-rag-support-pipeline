@@ -53,7 +53,33 @@ LEGAL_RE = re.compile(r"\b(lawyer|attorney|sue|lawsuit|legal action|small claims
 PHONE_RE = re.compile(r"\+?\d[\d\s().-]{8,}\d")
 PASSWORD_RE = re.compile(r"\bpassword\s*(is|:)\s*\S+", re.I)
 MIN_ANSWER_SCORE = 3.0
+ERROR_CODE_RE = re.compile(r"\berror\s*(?:code\s*)?#?\s*(\d{2,5})\b", re.I)
+# What each topic means, phrased for a colleague. The note never pastes the player's words.
+TOPIC_SUMMARIES = {
+    "disconnect_penalty": "Player received a disconnect penalty and is asking about it",
+    "matchmaking_error": "Player can't get into matchmaking",
+    "purchases": "Player reports a problem with a purchase or missing items",
+    "account_recovery": "Player can't access their account and needs it recovered",
+    "connection": "Player is experiencing disconnects or lag in matches",
+    "player_report": "Player is reporting another player's behavior",
+    "general_inquiry": "Player has a question outside the known topics",
+}
 WHEN_RE = re.compile(r"\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\byesterday\b|\btoday\b|\blast night\b|\b\d{1,2}[/-]\d{1,2}\b", re.I)
+
+
+_TURN_RE = re.compile(r"^--- (.+?) ---$", re.M)
+
+
+def _player_text(ticket: str) -> str:
+    """Only the player's words. On follow-ups the thread includes Support's replies,
+    and checklist answers repeat our questions; both list platforms the player never chose."""
+    # Checklist answers echo our question ("✓ Tell us which platform… (PC, PlayStation, …)").
+    ticket = re.sub(r"^✓ .*$\n?", "", ticket, flags=re.M)
+    parts = _TURN_RE.split(ticket)
+    if len(parts) == 1:
+        return ticket
+    head = parts[0].replace("Conversation so far, oldest first. Answer the player's latest message:", "")
+    return "\n".join([head, *(body for who, body in zip(parts[1::2], parts[2::2]) if who == "Player")])
 
 
 def _sleep(fast: bool = False) -> None:
@@ -102,6 +128,35 @@ def _safety(text: str) -> SafetyOutput:
         detected_language="en",
         safety_notes="Redact PII before replying." if pii else "",
     )
+
+
+def _summarize(text: str, cls: ClassifierOutput, safety: SafetyOutput, has_images: bool) -> str:
+    """A short third-person statement of the issue, built from the classification."""
+    summary = TOPIC_SUMMARIES.get(cls.primary_topic, TOPIC_SUMMARIES["general_inquiry"])
+    codes = dict.fromkeys(f"Error {c}" for c in ERROR_CODE_RE.findall(text))
+    if codes:
+        summary += f" ({', '.join(codes)})"
+    platforms = " and ".join(cls.platforms)
+    if platforms and cls.primary_topic != "general_inquiry":
+        summary += f" on {platforms}."
+    else:
+        summary += f". Platform: {platforms}." if platforms else "."
+    if has_images:
+        summary += " Screenshot attached."
+    if safety.escalation_flag:
+        summary = f"{safety.escalation_reason} {summary}"
+    return summary
+
+
+def _evidence(text: str, safety: SafetyOutput) -> str:
+    """For threats, the exact flagged sentence (escalation SOP: quote threats word for word)."""
+    if not safety.threat_type.startswith("rlt_"):
+        return ""
+    rx = SELF_HARM_RE if safety.threat_type == "rlt_self_harm" else VIOLENCE_RE
+    for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
+        if rx.search(sentence):
+            return sentence.strip()
+    return ""
 
 
 def _list_items(text: str) -> list[str]:
@@ -207,6 +262,7 @@ def run_mock(
 ) -> PipelineResult:
     """`fast` skips the simulated stage delays (used by the demo seeder)."""
     timings: dict = {"vision": 0.0}
+    ticket = _player_text(ticket)
     screenshot_text = ""
     if images:
         on_stage("vision", f"Reading {len(images)} screenshot(s)...")
@@ -259,8 +315,9 @@ def run_mock(
             f"- Platform: {', '.join(cls.platforms) or '(pending)'}",
             "",
             "**Assessment**",
-            f"- Summary: {' '.join(ticket.split())[:200]}",
+            f"- Summary: {_summarize(ticket, cls, safety, bool(images))}",
             f"- Topic: {cls.primary_topic}",
+            *([f'- Flagged text (verbatim): "{ev}"'] if (ev := _evidence(ticket, safety)) else []),
             f"- Matched documentation: {', '.join(c.article for c in citations) or 'none'}",
             "",
             "**Resolution**",
