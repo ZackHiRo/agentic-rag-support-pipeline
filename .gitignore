@@ -11,7 +11,18 @@ __pycache__/
 .ipynb_checkpoints/
 SETUP.md
 
-# Knowledge base — only kb/demo/ is committed
+# Knowledge base — only kb/demo/ (internal SOPs) and kb/help/ (public articles) are committed
 kb/*
 !kb/demo/
 !kb/demo/**
+!kb/help/
+!kb/help/**
+
+# Platform runtime data (SQLite DB, uploads)
+data/
+
+# Frontend
+node_modules/
+web/dist/
+web/openapi.json
+web/*.tsbuildinfo

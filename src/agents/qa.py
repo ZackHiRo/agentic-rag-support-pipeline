@@ -14,6 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from ..config import get_qa_adapter
+from .persona import AI_INTRO_EN, AI_SIGNATURE, to_ai_persona
 from ..llm import LLMAdapter
 from ..retrieve import Hit
 from ..schemas import (
@@ -29,9 +30,10 @@ ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "prompts"
 
 
-@lru_cache(maxsize=1)
-def _system_prompt() -> str:
-    return (PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
+@lru_cache(maxsize=2)
+def _system_prompt(persona: str = "human_agent") -> str:
+    prompt = (PROMPTS_DIR / "qa.md").read_text(encoding="utf-8")
+    return to_ai_persona(prompt) if persona == "ai_assistant" else prompt
 
 
 def _context_titles(hits: list[Hit]) -> str:
@@ -53,10 +55,23 @@ def run_qa(
     steps_out: StepsOutput,
     hits: list[Hit],
     *,
+    persona: str = "human_agent",
     adapter: LLMAdapter | None = None,
 ) -> QAResult:
     """Run the QA Agent."""
     adapter = adapter or get_qa_adapter()
+
+    persona_block = ""
+    if persona == "ai_assistant":
+        persona_block = (
+            "# Reply persona: AI assistant\n\n"
+            "This reply is sent directly by the AI assistant. For `agent_intro_line` and "
+            f"`content_structure`, expect a greeting followed by \"{AI_INTRO_EN}\" and the "
+            f"sign-off \"Best regards,\\n{AI_SIGNATURE}\". For this persona "
+            "`agent_intro_line` is CRITICAL (severity critical): a reply that does not "
+            "plainly say it comes from an AI, or implies a human wrote it, must fail it, "
+            "with revision feedback.\n\n"
+        )
 
     user = (
         "# Incoming ticket\n\n"
@@ -73,13 +88,14 @@ def run_qa(
         f"```json\n{reply_out.model_dump_json(indent=2)}\n```\n\n"
         "# Next Steps Agent output\n\n"
         f"```json\n{steps_out.model_dump_json(indent=2)}\n```\n\n"
+        f"{persona_block}"
         "Evaluate all outputs against the full checklist and produce the QAResult JSON now."
     )
 
     try:
         return adapter.parse(
             messages=[
-                {"role": "system", "content": _system_prompt()},
+                {"role": "system", "content": _system_prompt(persona)},
                 {"role": "user", "content": user},
             ],
             response_format=QAResult,

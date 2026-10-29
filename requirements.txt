@@ -8,11 +8,18 @@ chromadb>=0.5.20
 rank-bm25>=0.2.2
 pydantic>=2.9.2
 python-dotenv>=1.0.1
-streamlit>=1.50.0
-streamlit-paste-button>=0.1.2
 tiktoken>=0.8.0
 tqdm>=4.67.0
-pillow>=10.4.0
+pillow>=10.4.0           # screenshot resizing for the vision model
+
+# ── Support platform backend (server/) ───────────────────────────────────────
+fastapi[standard]>=0.115.0   # includes uvicorn + python-multipart
+sqlmodel>=0.0.48             # stores timezone-aware UTC datetimes (the server relies on this)
+itsdangerous>=2.2.0          # signed session cookies and magic links
+psycopg[binary]>=3.2        # only used when DATABASE_URL points at Postgres
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+pytest>=8.3.0
 
 # ── Optional: Anthropic provider ─────────────────────────────────────────────
 # Uncomment if you set LLM_PROVIDER=anthropic in .env

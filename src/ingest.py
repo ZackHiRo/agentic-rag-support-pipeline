@@ -71,6 +71,7 @@ class ChunkRecord:
     slug: str
     source_url: str
     source_hash: str
+    audience: str
     heading_path: str
     text: str
     token_count: int
@@ -84,6 +85,7 @@ class ChunkRecord:
             "slug": self.slug,
             "source_url": self.source_url,
             "source_hash": self.source_hash,
+            "audience": self.audience,
             "heading_path": self.heading_path,
             "token_count": self.token_count,
         }
@@ -175,6 +177,8 @@ def chunk_article(post: frontmatter.Post, md_path: Path) -> list[ChunkRecord]:
     slug = str(meta.get("slug") or md_path.stem)
     source_url = str(meta.get("source_url") or "")
     source_hash = str(meta.get("source_hash") or "")
+    # "public" articles may be shown to players; everything else is internal-only.
+    audience = "public" if str(meta.get("audience", "")).lower() == "public" else "internal"
 
     raw_sections = parse_sections(post.content)
     refined: list[tuple[list[str], str]] = []
@@ -209,6 +213,7 @@ def chunk_article(post: frontmatter.Post, md_path: Path) -> list[ChunkRecord]:
                 slug=slug,
                 source_url=source_url,
                 source_hash=source_hash,
+                audience=audience,
                 heading_path=heading_str,
                 text=full_text,
                 token_count=tok,

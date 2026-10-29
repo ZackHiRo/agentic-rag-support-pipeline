@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 # Article / KB metadata
 # ---------------------------------------------------------------------------
 
-ArticleType = Literal["procedure", "reference", "known-issue", "patch-note", "handbook"]
+ArticleType = Literal["procedure", "reference", "known-issue", "patch-note", "handbook", "help-article"]
 ArticleCategory = Literal["game", "general"]
 
 
@@ -35,6 +35,7 @@ class FrontMatter(BaseModel):
     source_html: str = ""
     source_hash: str = ""
     last_updated: str = ""
+    audience: Literal["public", "internal"] = "internal"
 
 
 class Chunk(BaseModel):
@@ -144,7 +145,8 @@ class NoteOutput(BaseModel):
     internal_note: str = Field(
         description="Markdown internal note following the three-part schema: "
         "Identification (Customer ID, Platform; Reported User ID and Reference ID only when it's a player report), "
-        "Assessment (concise Summary including error message/code if present, Findings, Matched Documentation), "
+        "Assessment (concise Summary of the issue in your own words, third person, never a copy of the player's message, "
+        "including error message/code if present; Findings; Matched Documentation), "
         "Resolution (Actions Taken, PII Status, Escalation). "
         "Use '(pending)' for fields the human still needs to fill in."
     )

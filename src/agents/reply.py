@@ -13,8 +13,10 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from ..config import get_reply_adapter
+from .persona import to_ai_persona
 from ..llm import LLMAdapter
 from ..retrieve import Hit
 from ..schemas import ClassifierOutput, ReplyOutput, SafetyOutput
@@ -22,13 +24,23 @@ from ..schemas import ClassifierOutput, ReplyOutput, SafetyOutput
 ROOT = Path(__file__).resolve().parents[2]
 PROMPTS_DIR = ROOT / "prompts"
 
+# "human_agent": draft for a human agent to review and send (signs as Alex).
+# "ai_assistant": sent straight to the player by the AI (discloses it is an AI).
+Persona = Literal["human_agent", "ai_assistant"]
 
-@lru_cache(maxsize=1)
-def _system_prompt() -> str:
-    """Load and interpolate once; cached for the process lifetime."""
+
+@lru_cache(maxsize=2)
+def _system_prompt(persona: Persona = "human_agent") -> str:
+    """Load and interpolate once per persona; cached for the process lifetime."""
     raw = (PROMPTS_DIR / "player_reply.md").read_text(encoding="utf-8")
     tone_rules = (PROMPTS_DIR / "tone_rules.md").read_text(encoding="utf-8")
-    return raw.replace("{TONE_RULES}", tone_rules)
+    prompt = raw.replace("{TONE_RULES}", tone_rules)
+    if persona == "ai_assistant":
+        # Rewrite the human-agent intro/sign-off rules (an appended override alone
+        # is not reliable), then add the AI-specific rules.
+        override = (PROMPTS_DIR / "persona_ai_assistant.md").read_text(encoding="utf-8")
+        prompt = f"{to_ai_persona(prompt)}\n\n---\n\n{to_ai_persona(override)}"
+    return prompt
 
 
 def _format_context(hits: list[Hit]) -> str:
@@ -66,6 +78,7 @@ def run_reply(
     guidance: str = "",
     revision_feedback: str = "",
     *,
+    persona: Persona = "human_agent",
     adapter: LLMAdapter | None = None,
 ) -> ReplyOutput:
     """Run the Player Reply Agent."""
@@ -104,7 +117,7 @@ def run_reply(
 
     return adapter.parse(
         messages=[
-            {"role": "system", "content": _system_prompt()},
+            {"role": "system", "content": _system_prompt(persona)},
             {"role": "user", "content": user},
         ],
         response_format=ReplyOutput,

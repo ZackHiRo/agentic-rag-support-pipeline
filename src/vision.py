@@ -102,7 +102,7 @@ def transcribe_screenshots(
     for url in data_urls:
         user_content.append({"type": "image_url", "image_url": {"url": url, "detail": "high"}})
 
-    client = OpenAI()
+    client = OpenAI(timeout=float(os.getenv("LLM_TIMEOUT_SECONDS", "60")), max_retries=2)
     try:
         resp = client.chat.completions.create(
             model=model or VISION_MODEL,
